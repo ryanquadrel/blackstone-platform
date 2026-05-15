@@ -1,0 +1,21 @@
+[Unit]
+Description=Blackstone Auto-Ship Agent Platform (AgentOS)
+Documentation=https://github.com/ryanquadrel/blackstone-platform
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+# AgentOS is run by docker compose; this unit just ensures the stack is up
+# on boot and brought down on shutdown. The api container itself has
+# restart: always, so crash-loop recovery is Docker's job, not systemd's.
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/blackstone-platform
+Environment="COMPOSE_FILE=deploy/edgexpert/compose.prod.yaml"
+ExecStart=/usr/bin/docker compose up -d --build
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

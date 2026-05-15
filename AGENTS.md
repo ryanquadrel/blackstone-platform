@@ -1,10 +1,10 @@
-# AgentOS Railway Template
+# Blackstone Auto-Ship Platform (on Agno)
 
 This file is the source of truth for any agent (Claude Code, Codex, others) working in this repo. `CLAUDE.md` is a symlink to this file — edit one, both update.
 
 ## Project Overview
 
-A unified agent platform built on [Agno](https://docs.agno.com), shipped as a copy-pasteable starting point. Two reference agents demonstrate the two common shapes for supplying context to an agent. Postgres (pgvector) handles persistence for sessions, memory, and knowledge. Designed to run locally via Docker and deploy to Railway with a single script.
+Blackstone Law's auto-ship platform, customized from [agno-agi/agent-platform-railway](https://github.com/agno-agi/agent-platform-railway) (Apache-2.0). Two reference agents demonstrate the common shapes for supplying context to an agent. Postgres (pgvector) handles persistence for sessions, memory, and knowledge. Designed to run locally via Docker and deploy to EdgeXpert (or any Linux + docker + systemd host) — see [`deploy/edgexpert/`](deploy/edgexpert/).
 
 ## Architecture
 
@@ -34,8 +34,8 @@ Shared:
 | [`db/url.py`](db/url.py) | Builds the database URL from env. |
 | [`evals/cases.py`](evals/cases.py) | Eval cases (each is a `Case` with optional judge + reliability checks). |
 | [`evals/__main__.py`](evals/__main__.py) | `python -m evals` runner — wraps agno's `AgentAsJudgeEval` + `ReliabilityEval`. |
-| [`compose.yaml`](compose.yaml) | Docker Compose for local development. |
-| [`railway.json`](railway.json) | Railway deploy config (Docker + 2 replicas + 4Gi/2vCPU). |
+| [`compose.yaml`](compose.yaml) | Docker Compose for local development (hot-reload, bind mount). |
+| [`deploy/edgexpert/`](deploy/edgexpert/) | Production deploy: `compose.prod.yaml`, `agentos.service`, `install.sh`, README. |
 
 ## Development Setup
 
@@ -165,7 +165,7 @@ Run [`docs/review-and-improve.md`](docs/review-and-improve.md). A recurring swee
 | `DB_PORT_HOST` | no | `5432` | Host-side port mapping for Postgres. |
 | `RUNTIME_ENV` | no | `prd` | `dev` enables hot-reload and disables JWT. Compose sets this to `dev` for local. |
 | `JWT_VERIFICATION_KEY` | prd | — | Public key from os.agno.com. Required when `RUNTIME_ENV=prd` and `authorization=True`. |
-| `AGENTOS_URL` | no | `http://127.0.0.1:8000` | Scheduler base URL. Set to your Railway domain in production so cron triggers reach AgentOS. |
+| `AGENTOS_URL` | no | `http://127.0.0.1:8000` | Scheduler base URL. Set to the public/internal URL in production so cron triggers reach AgentOS. |
 | `PARALLEL_API_KEY` | no | — | Authenticates the WebSearch Agent's Parallel SDK / MCP connection (raises rate ceiling). |
 | `SLACK_BOT_TOKEN` | no | — | Bot token. Set with signing secret to enable Slack interface. |
 | `SLACK_SIGNING_SECRET` | no | — | Signing secret. Both must be set for the interface to load. |
@@ -199,17 +199,20 @@ Set `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET` and restart. The default wiring
 
 For Discord, Telegram, WhatsApp, and custom UIs, mirror the Slack conditional pattern with the relevant agno interface — see [agno interfaces overview](https://docs.agno.com/agent-os/interfaces/overview).
 
-## Deploying to Railway
+## Deploying to EdgeXpert
 
 ```bash
-./scripts/railway/up.sh        # provision Postgres + agent-os service
-./scripts/railway/env-sync.sh  # sync .env.production (default) or .env
-./scripts/railway/redeploy.sh  # redeploy after code changes
+git clone https://github.com/ryanquadrel/blackstone-platform.git ~/blackstone-platform
+cd ~/blackstone-platform
+cp example.env .env                 # edit before installing
+sudo bash deploy/edgexpert/install.sh
 ```
 
-The first deploy will fail intentionally — JWT auth is on by default and `JWT_VERIFICATION_KEY` isn't set yet. Get the key from os.agno.com (Add OS → Live → Token Based Authorization), put it in `.env.production`, run `./scripts/railway/env-sync.sh`, and Railway auto-redeploys.
+Full walkthrough including update path, healthcheck behavior, port-conflict overrides, and dev-vs-prod differences in [`deploy/edgexpert/README.md`](deploy/edgexpert/README.md).
 
-The Railway *project* is `agent-platform`; the app *service* is `agent-os`.
+For other Linux hosts: the same `deploy/edgexpert/` files work anywhere with `docker` + `systemd` + (typically) ARM64 or amd64. The directory name is historical; nothing in the files is EdgeXpert-specific.
+
+JWT note: the first deploy with `RUNTIME_ENV=prd` (the default) refuses traffic until `JWT_VERIFICATION_KEY` is set. Generate the keypair at os.agno.com (Add OS → Live → Token Based Authorization), add the PEM block to `.env`, restart the unit.
 
 ## Common Tasks
 
@@ -222,8 +225,9 @@ docker compose up -d --build
 # Build a multi-arch image (maintainer-only)
 ./scripts/build_image.sh
 
-# Tail Railway logs
-railway logs --service agent-os
+# Tail prod logs on the deployed host
+journalctl -u agentos.service -f
+docker compose -f /opt/blackstone-platform/deploy/edgexpert/compose.prod.yaml logs -f agentos-api
 ```
 
 ## Documentation Links

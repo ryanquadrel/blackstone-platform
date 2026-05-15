@@ -1,0 +1,66 @@
+services:
+  agentos-db:
+    image: agnohq/pgvector:18
+    container_name: agentos-db
+    restart: always
+    # Bind to loopback only — Postgres is reachable from the api container
+    # via the compose network. There's no reason for it to be reachable from
+    # the LAN on a prod host. Override DB_PORT_HOST to expose if needed.
+    ports:
+      - "127.0.0.1:${DB_PORT_HOST:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    environment:
+      POSTGRES_USER: ${DB_USER:-ai}
+      POSTGRES_PASSWORD: ${DB_PASS:-ai}
+      POSTGRES_DB: ${DB_DATABASE:-ai}
+    networks:
+      - agentos
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ai} -d ${DB_DATABASE:-ai}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  agentos-api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: agentos-api
+    image: ${IMAGE_NAME:-agentos}:${IMAGE_TAG:-latest}
+    restart: always
+    ports:
+      - "${AGENTOS_PORT:-8000}:8000"
+    env_file:
+      - path: ../../.env
+        required: false
+    environment:
+      RUNTIME_ENV: prd
+      AGNO_DEBUG: "False"
+      WAIT_FOR_DB: "True"
+      AGENTOS_URL: ${AGENTOS_URL:-http://127.0.0.1:8000}
+      DB_HOST: agentos-db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-ai}
+      DB_PASS: ${DB_PASS:-ai}
+      DB_DATABASE: ${DB_DATABASE:-ai}
+    depends_on:
+      agentos-db:
+        condition: service_healthy
+    networks:
+      - agentos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/agents > /dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+
+networks:
+  agentos:
+
+volumes:
+  pgdata:
