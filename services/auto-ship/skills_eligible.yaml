@@ -1,0 +1,54 @@
+# Auto-ship eligibility manifest.
+#
+# This file gates which skills the auto-ship platform may operate on. See
+# services/auto-ship/README.md for the full rules and structural-check
+# rationale. Edits require Ryan's CODEOWNERS review.
+#
+# Three tiers:
+#   auto_loop  — full Detect -> Improve -> Hill Climb -> Review cycle
+#   probe_only — Telegram alert on failure, no auto-fix dispatch
+#   excluded   — never touched by auto-ship; hard exclude
+#
+# An entry must appear in EXACTLY ONE tier. The validator
+# (services/auto-ship/validate_allowlist.py) enforces this plus the
+# structural drafter-detection rules on auto_loop entries.
+
+auto_loop:
+  - discovery-tracker-sync
+  - command-center-sync
+  - motion-dashboard
+  - landing-page-sync
+  - dashboard-health-checkup
+  - cmc-monitor-sync
+  - mediation-prep-trigger
+  - alarm-system
+
+probe_only:
+  - daily-case-briefing  # surface failures but don't auto-fix
+
+# Drafter skills — never eligible. The structural checks in
+# validate_allowlist.py also enforce this, but listing them here is
+# explicit and survives any future structural-check gap.
+excluded:
+  - mc-letter
+  - mediation-brief
+  - mpa-iso-mtc
+  - declaration-iso-mtc
+  - separate-statement-mtc
+  - cmc-statement
+  - rfp-drafting
+  - srog-drafting
+  - rfp-responses
+  - frog-responses
+  - srog-responses
+  - rfa-responses
+  - belaire-west-notice
+  - stip-to-stay
+  - mediation-data-demand
+  - legal-doc-drafting
+  - legal-brief-review
+  - final-draft-redline
+  - discovery-cover-letter
+  - proof-of-service
+  - pick-off-response
+  - mtca-opposition
