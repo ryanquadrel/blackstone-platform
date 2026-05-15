@@ -4,7 +4,7 @@ services:
     container_name: agentos-db
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "${DB_PORT_HOST:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql
     environment:
@@ -28,7 +28,7 @@ services:
       --reload-dir agents --reload-dir app --reload-dir db
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${AGENTOS_PORT:-8000}:8000"
     volumes:
       - .:/app
     env_file:

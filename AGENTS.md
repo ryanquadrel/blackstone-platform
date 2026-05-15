@@ -16,7 +16,7 @@ AgentOS  (app/main.py)
 
 Shared:
 - PostgreSQL + pgvector for sessions, memory, knowledge.
-- `app.settings.default_model()` returns `OpenAIResponses(id="gpt-5.4")` — bump the model in one place.
+- `app.settings.default_model()` returns `VLLM(id="Qwen/Qwen3.5-122B-A10B-FP8")` pointed at the Blackstone vLLM cluster on `spark-1:8000`. Override per deployment via `VLLM_BASE_URL` / `VLLM_MODEL_ID`. Agents wanting Claude or another provider construct it directly (e.g. `Claude(id="claude-sonnet-4-6", api_key=...)`).
 - Scheduler enabled by default (`scheduler=True`).
 - Slack interface lights up automatically when both `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET` are set.
 - JWT auth on whenever `RUNTIME_ENV == "prd"` (so production deploys are gated by default).
@@ -154,7 +154,15 @@ Run [`docs/review-and-improve.md`](docs/review-and-improve.md). A recurring swee
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `OPENAI_API_KEY` | yes | — | OpenAI key for models + embeddings. |
+| `VLLM_BASE_URL` | no | `http://spark-1:8000/v1` | Base URL of the vLLM endpoint backing `default_model()`. |
+| `VLLM_MODEL_ID` | no | `Qwen/Qwen3.5-122B-A10B-FP8` | Model id passed to the vLLM provider. |
+| `VLLM_API_KEY` | no | `not-required` | Auth for the vLLM endpoint. Our internal cluster doesn't require auth. |
+| `VLLM_MAX_TOKENS` | no | `4096` | Max output tokens. Thinking-mode models (Qwen3.5) need ≥4096. |
+| `OPENAI_API_KEY` | no | — | OpenAI key. Required ONLY if an agent uses OpenAI directly OR you wire a Knowledge base (`db.create_knowledge` uses `OpenAIEmbedder`). |
+| `ANTHROPIC_API_KEY` | no | — | Anthropic key. Required only by agents constructed with `Claude(...)` directly. |
+| `TELEGRAM_TOKEN` | no | — | Bot token for the Agno Telegram interface (webhook-only). See [`docs/decisions/0001-telegram-two-bots.md`](docs/decisions/0001-telegram-two-bots.md). |
+| `AGENTOS_PORT` | no | `8000` | Host-side port mapping for the API container. Override when the default is taken (e.g. on EdgeXpert vLLM owns 8000). |
+| `DB_PORT_HOST` | no | `5432` | Host-side port mapping for Postgres. |
 | `RUNTIME_ENV` | no | `prd` | `dev` enables hot-reload and disables JWT. Compose sets this to `dev` for local. |
 | `JWT_VERIFICATION_KEY` | prd | — | Public key from os.agno.com. Required when `RUNTIME_ENV=prd` and `authorization=True`. |
 | `AGENTOS_URL` | no | `http://127.0.0.1:8000` | Scheduler base URL. Set to your Railway domain in production so cron triggers reach AgentOS. |
@@ -168,8 +176,12 @@ Run [`docs/review-and-improve.md`](docs/review-and-improve.md). A recurring swee
 
 ## Ports
 
-- API: `8000`
-- Database: `5432`
+| Service | Container port | Host port | Override |
+|---|---|---|---|
+| API | `8000` | `8000` | `AGENTOS_PORT` |
+| Postgres | `5432` | `5432` | `DB_PORT_HOST` |
+
+Container-internal ports never change; the env vars only affect the host-side mapping in `compose.yaml`.
 
 ## Scheduler
 
