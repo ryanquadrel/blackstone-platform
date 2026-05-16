@@ -160,7 +160,9 @@ Run [`docs/review-and-improve.md`](docs/review-and-improve.md). A recurring swee
 | `VLLM_MAX_TOKENS` | no | `4096` | Max output tokens. Thinking-mode models (Qwen3.5) need ≥4096. |
 | `OPENAI_API_KEY` | no | — | OpenAI key. Required ONLY if an agent uses OpenAI directly OR you wire a Knowledge base (`db.create_knowledge` uses `OpenAIEmbedder`). |
 | `ANTHROPIC_API_KEY` | no | — | Anthropic key. Required only by agents constructed with `Claude(...)` directly. |
-| `TELEGRAM_TOKEN` | no | — | Bot token for the Agno Telegram interface (webhook-only). See [`docs/decisions/0001-telegram-two-bots.md`](docs/decisions/0001-telegram-two-bots.md). |
+| `TELEGRAM_TOKEN` | no | — | Bot token for the Agno Telegram interface (webhook-only). See [`docs/decisions/0001-telegram-two-bots.md`](docs/decisions/0001-telegram-two-bots.md). Requires `TELEGRAM_ALLOWED_CHAT_IDS`. |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | iff `TELEGRAM_TOKEN` | — | Comma-separated integer chat ids permitted to talk to the bot. Fail-closed: if `TELEGRAM_TOKEN` is set but this parses to an empty set (whitespace-only or commas-only count as empty), AgentOS refuses to start. Enforced by [`app/middleware/telegram_whitelist.py`](app/middleware/telegram_whitelist.py). |
+| `TELEGRAM_WEBHOOK_SECRET_TOKEN` | recommended | — | Agno's own webhook-secret second layer. In prod (`RUNTIME_ENV!=development`) Agno validates `X-Telegram-Bot-Api-Secret-Token` against this. Set it AND pass it when registering the public URL via `setWebhook`. See [`example.env`](example.env) for the curl invocation. |
 | `AGENTOS_PORT` | no | `8000` | Host-side port mapping for the API container. Override when the default is taken (e.g. on EdgeXpert vLLM owns 8000). |
 | `DB_PORT_HOST` | no | `5432` | Host-side port mapping for Postgres. |
 | `RUNTIME_ENV` | no | `prd` | `dev` enables hot-reload and disables JWT. Compose sets this to `dev` for local. |
