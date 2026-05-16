@@ -40,8 +40,8 @@ services:
       AGNO_DEBUG: "False"
       WAIT_FOR_DB: "True"
       AGENTOS_URL: ${AGENTOS_URL:-http://127.0.0.1:8000}
-      DB_HOST: agentos-db
-      DB_PORT: 5432
+      DB_HOST: ${DB_HOST:-agentos-db}
+      DB_PORT: ${DB_PORT:-5432}
       DB_USER: ${DB_USER:-ai}
       DB_PASS: ${DB_PASS:-ai}
       DB_DATABASE: ${DB_DATABASE:-ai}
