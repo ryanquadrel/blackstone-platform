@@ -169,10 +169,25 @@ Run [`docs/review-and-improve.md`](docs/review-and-improve.md). A recurring swee
 | `PARALLEL_API_KEY` | no | — | Authenticates the WebSearch Agent's Parallel SDK / MCP connection (raises rate ceiling). |
 | `SLACK_BOT_TOKEN` | no | — | Bot token. Set with signing secret to enable Slack interface. |
 | `SLACK_SIGNING_SECRET` | no | — | Signing secret. Both must be set for the interface to load. |
-| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASS` / `DB_DATABASE` | no | matches compose | Postgres connection. |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASS` / `DB_DATABASE` | no | matches compose (local dev) | Postgres connection. For Supabase: see [Database](#database) section. |
 | `DB_DRIVER` | no | `postgresql+psycopg` | SQLAlchemy driver. |
 | `AGNO_DEBUG` | no | `False` | If `True`, agno emits verbose debug logs. Compose sets this for dev. |
 | `WAIT_FOR_DB` | no | `False` | If `True`, the entrypoint blocks on the DB before starting. Compose sets this. |
+
+## Database
+
+Two supported targets:
+
+| Mode | Connection | When |
+|---|---|---|
+| **Local Postgres** | `agentos-db` container (the default in `compose.yaml`) | Dev. Lives alongside the api container; data in a `pgdata` volume. |
+| **Supabase session pooler** | `aws-1-us-west-2.pooler.supabase.com:5432`, user `postgres.<project-ref>` | Production. Memo §2 prescribed `pxyrurfpeyodesjxjfqc` (`auto_ship_platform` schema). |
+
+`db/url.py` reads from `DB_HOST` / `DB_USER` / `DB_PASS` / `DB_DATABASE` env vars; no code change to switch targets. To point at Supabase: set those four vars in `.env` (see `example.env` for the template). Use the **session pooler**, not the transaction pooler — the latter breaks prepared statements + multi-statement transactions, both of which Agno + our migrations rely on.
+
+Direct connection (`db.<project-ref>.supabase.co:5432`) works but is IPv6-only — Docker containers can't reach it without daemon-level IPv6 enable.
+
+Blackstone-owned state-layer tables (`dispatches`, `ingestion_state`, `in_flight_runs`, `auto_ship_halted`) live under the `auto_ship_platform` schema; Agno's runtime tables sit under `public`. The two schemas don't collide. See [`services/auto-ship/migrations/README.md`](services/auto-ship/migrations/README.md) for the applier.
 
 ## Ports
 
