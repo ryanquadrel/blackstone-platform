@@ -59,7 +59,12 @@ class HaltStateRepo:
                 )
                 row = await cur.fetchone()
             await conn.commit()
-        return HaltState(*row)  # type: ignore[misc]
+        if row is None:
+            raise RuntimeError(
+                "halt(): no row returned — auto_ship_halted seed row missing. "
+                "Re-run services/auto-ship/migrations/apply.py"
+            )
+        return HaltState(*row)
 
     async def resume(self, *, set_by: str) -> HaltState:
         async with await psycopg.AsyncConnection.connect(**self._conn_kwargs) as conn:
@@ -73,4 +78,9 @@ class HaltStateRepo:
                 )
                 row = await cur.fetchone()
             await conn.commit()
-        return HaltState(*row)  # type: ignore[misc]
+        if row is None:
+            raise RuntimeError(
+                "resume(): no row returned — auto_ship_halted seed row missing. "
+                "Re-run services/auto-ship/migrations/apply.py"
+            )
+        return HaltState(*row)

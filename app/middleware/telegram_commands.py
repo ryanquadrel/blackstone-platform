@@ -113,11 +113,24 @@ class TelegramHaltCommandMiddleware(BaseHTTPMiddleware):
             reply = f"Command {cmd} failed: {type(e).__name__}. Check logs."
 
         log_info(f"Halt command {cmd} handled for chat_id={chat_id}; reply={reply!r}")
+        reply_status: int | None = None
         try:
-            await self.send_message(chat_id, reply)
+            reply_status = await self.send_message(chat_id, reply)
         except Exception as e:
             # Reply failure is annoying but the DB update already landed.
             log_error(f"Failed to send Telegram reply for {cmd}: {e!r}")
+
+        # Codex PR#5 P2: surface sender-side HTTP errors. The sender
+        # protocol returns the raw HTTP status; any non-2xx means Telegram
+        # rejected our reply (bad token, rate limit, server error). Log
+        # loudly — the DB flip already happened, so the operator needs to
+        # know they may not have seen the confirmation.
+        if reply_status is not None and not (200 <= reply_status < 300):
+            log_error(
+                f"Telegram sendMessage returned HTTP {reply_status} "
+                f"for {cmd} (chat_id={chat_id}); DB state was flipped but "
+                f"the operator may not have received the reply."
+            )
 
         return JSONResponse({"status": "handled", "command": cmd}, status_code=200)
 
@@ -161,12 +174,29 @@ async def _replay(request: Request, call_next, body_bytes: bytes) -> Response:
 # ---------------------------------------------------------------------------
 
 
-def make_telegram_sender(bot_token: str) -> SendMessageFn:
+def make_telegram_sender(bot_token: str, timeout_sec: float = 10.0) -> SendMessageFn:
+    """Return a SendMessageFn bound to the given bot token.
+
+    The sender uses an aiohttp ClientTimeout so a misbehaving Telegram
+    endpoint can't hang the webhook handler. On non-2xx it logs the
+    response body for debuggability (bad-token responses include a
+    helpful description), then returns the status — the middleware
+    treats that as an operator-visible failure (Codex PR#5 P2).
+    """
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    timeout = aiohttp.ClientTimeout(total=timeout_sec)
 
     async def send(chat_id: int, text: str) -> int:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, json={"chat_id": chat_id, "text": text}) as resp:
+                if not (200 <= resp.status < 300):
+                    try:
+                        body = (await resp.text())[:500]
+                    except Exception:
+                        body = "<unreadable>"
+                    log_error(f"Telegram sendMessage HTTP {resp.status} (chat_id={chat_id}); body={body!r}")
                 return resp.status
+
+    return send
 
     return send
