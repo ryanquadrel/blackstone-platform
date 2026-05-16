@@ -1,0 +1,54 @@
+name: Allowlist validate
+
+on:
+  pull_request:
+    paths:
+      - 'services/auto-ship/skills_eligible.yaml'
+      - 'services/auto-ship/validate_allowlist.py'
+      - 'services/auto-ship/test_validate_allowlist.py'
+      - '.github/workflows/allowlist-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/auto-ship/skills_eligible.yaml'
+      - 'services/auto-ship/validate_allowlist.py'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout blackstone-platform
+        uses: actions/checkout@v4
+        with:
+          path: blackstone-platform
+
+      - name: Checkout blackstone-automations (read-only)
+        uses: actions/checkout@v4
+        with:
+          repository: ryanquadrel/blackstone-automations
+          token: ${{ secrets.BLACKSTONE_AUTOMATIONS_READ }}
+          path: blackstone-automations
+          sparse-checkout: |
+            skills
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml pytest
+
+      - name: Run validator unit tests
+        working-directory: blackstone-platform/services/auto-ship
+        run: pytest -q test_validate_allowlist.py
+
+      - name: Validate live manifest
+        working-directory: blackstone-platform
+        run: |
+          python services/auto-ship/validate_allowlist.py \
+            --manifest services/auto-ship/skills_eligible.yaml \
+            --automations-root ../blackstone-automations
