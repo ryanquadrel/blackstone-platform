@@ -95,7 +95,7 @@ class TelegramHaltCommandMiddleware(BaseHTTPMiddleware):
             log_warning(f"Halt-command middleware: dropping {cmd} from chat_id={chat_id}")
             return JSONResponse({"status": "dropped"}, status_code=200)
 
-        from_user = (message.get("from") or {})
+        from_user = message.get("from") or {}
         set_by = f"telegram:{chat_id}:{from_user.get('username') or from_user.get('id', '?')}"
 
         try:
@@ -159,6 +159,7 @@ async def _replay(request: Request, call_next, body_bytes: bytes) -> Response:
 # Default `send_message` implementation — POST to Telegram Bot API via aiohttp.
 # Constructed in app/main.py with the bot token bound in.
 # ---------------------------------------------------------------------------
+
 
 def make_telegram_sender(bot_token: str) -> SendMessageFn:
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
