@@ -41,6 +41,16 @@ CREATE TABLE IF NOT EXISTS in_flight_runs (
     last_observed_status    TEXT NOT NULL,
     resolved_at             TIMESTAMPTZ,
 
+    -- Domain CHECK on the status string (Codex review PR#2): without this,
+    -- typos persist forever as unresolved and Detect never sees those rows.
+    -- Must include 'running' (the unresolved state) plus all terminal values.
+    CONSTRAINT last_observed_status_valid
+        CHECK (last_observed_status IN (
+            'running',
+            'success', 'error', 'skipped', 'timeout', 'crashed',
+            'source_deleted', 'orphan_swept'
+        )),
+
     CONSTRAINT resolved_at_consistent
         CHECK ((last_observed_status IN (
                     'success', 'error', 'skipped', 'timeout',

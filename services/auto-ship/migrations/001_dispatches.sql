@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS dispatches (
                         CHECK (status IN ('pending', 'in_flight', 'success', 'failure', 'triage')),
     claim_owner         TEXT,
     claim_expires_at    TIMESTAMPTZ,
-    github_issue_id     INT,
-    github_pr_id        INT,
+    github_issue_number INT,                                -- repo-local issue number (#123); NOT the global REST object id
+    github_pr_number    INT,                                -- repo-local PR number; NOT the global REST object id
     evidence_hash       TEXT NOT NULL,
     evidence_json       JSONB NOT NULL,
     parent_dispatch_id  UUID REFERENCES auto_ship_platform.dispatches(id),
@@ -66,3 +66,11 @@ COMMENT ON COLUMN dispatches.evidence_json IS
 COMMENT ON COLUMN dispatches.parent_dispatch_id IS
     'Lineage: an Improve dispatch references its parent Detect dispatch, etc. '
     'Used for per-PR cap enforcement at Detect-stage entry (memo §3.5).';
+
+COMMENT ON COLUMN dispatches.github_issue_number IS
+    'Repo-local issue number (the #123 you see in github.com URLs), NOT the '
+    'global REST object id. INT is sufficient — even the busiest single repos '
+    'do not approach 2^31 issues.';
+
+COMMENT ON COLUMN dispatches.github_pr_number IS
+    'Repo-local PR number, NOT the global REST object id. See github_issue_number.';

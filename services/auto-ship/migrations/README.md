@@ -11,7 +11,7 @@ Per memo §1.5 ([`docs/auto-ship-platform-v2-customization-on-agno.md`](https://
 | `002_ingestion_state.sql` | §1.5.2 | `ingestion_state` (single-row cursor) + `in_flight_runs` + 1 partial index. The two-tier ingestion of upstream `task_runs`. |
 | `003_auto_ship_halted.sql` | §1.5.4 | `auto_ship_halted` (single-row halt switch) + initial seed row. |
 
-All migrations are scoped to the `auto_ship_platform` schema; they don't touch Agno's `agno_*` tables in `public`.
+All tables created by these migrations are scoped to the `auto_ship_platform` schema; they don't touch Agno's `agno_*` tables in `public`. **One exception:** `000_schema.sql` runs `CREATE EXTENSION IF NOT EXISTS pgcrypto`, which is a database-level operation — extension functions (used for `gen_random_uuid()` in `001_dispatches.sql`) live wherever the extension is installed (typically `public`), not inside `auto_ship_platform`.
 
 ## Applying
 

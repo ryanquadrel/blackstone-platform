@@ -37,13 +37,18 @@ DEFAULTS = {
 }
 
 
-def _conninfo() -> str:
+def _connect_kwargs() -> dict:
+    """Read connection params from env. Keyword args sidestep libpq conninfo
+    quoting/injection (Codex review PR#2: a password containing `=` would
+    silently inject extra params via the conninfo-string path)."""
     parts = {key: os.environ.get(key, default) for key, default in DEFAULTS.items()}
-    return (
-        f"host={parts['DB_HOST']} port={parts['DB_PORT']} "
-        f"user={parts['DB_USER']} password={parts['DB_PASS']} "
-        f"dbname={parts['DB_DATABASE']}"
-    )
+    return {
+        "host": parts["DB_HOST"],
+        "port": parts["DB_PORT"],
+        "user": parts["DB_USER"],
+        "password": parts["DB_PASS"],
+        "dbname": parts["DB_DATABASE"],
+    }
 
 
 def _migration_files() -> list[Path]:
@@ -56,11 +61,10 @@ def main() -> int:
         print(f"No migrations found in {MIGRATIONS_DIR}", file=sys.stderr)
         return 1
 
-    print(
-        f"Applying {len(files)} migration(s) to {DEFAULTS['DB_HOST']}=>{os.environ.get('DB_HOST', DEFAULTS['DB_HOST'])} ..."
-    )
+    kwargs = _connect_kwargs()
+    print(f"Applying {len(files)} migration(s) to {kwargs['host']} ...")
 
-    with psycopg.connect(_conninfo()) as conn:
+    with psycopg.connect(**kwargs) as conn:
         for path in files:
             print(f"  {path.name} ... ", end="", flush=True)
             sql = path.read_text(encoding="utf-8")
