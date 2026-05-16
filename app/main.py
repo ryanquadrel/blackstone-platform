@@ -93,16 +93,44 @@ agent_os = AgentOS(
 )
 app = agent_os.get_app()
 
-# Telegram chat-id whitelist runs ahead of Agno's webhook handler so
-# unauthorized updates never reach the agent. See
-# app/middleware/telegram_whitelist.py for the drop-vs-forward logic.
+# Telegram middleware stack. Codex PR#4 P3 + Step 5c.
+#
 # Same _telegram_allowed_chat_ids signal as the interface append above
-# — if the interface was appended, the middleware is installed; the
-# parser raises on the in-between state where token is set but chat-id
-# set is empty.
+# drives BOTH middlewares — if the interface was appended, both middlewares
+# are installed; the parser raises on the in-between state where token is
+# set but chat-id set is empty.
+#
+# Starlette runs middlewares in reverse order of add_middleware() — the
+# LAST add wraps everything, so it runs FIRST. Desired flow:
+#   1. Whitelist middleware  → drop if chat_id not in allowlist
+#   2. Halt-command middleware → handle /halt /resume /status (no LLM call)
+#   3. Agno's /telegram/webhook → everything else (LLM-backed agent reply)
+# Therefore: command middleware added FIRST (becomes inner), whitelist
+# SECOND (becomes outer).
 if _telegram_allowed_chat_ids:
+    from app.middleware.telegram_commands import (
+        TelegramHaltCommandMiddleware,
+        make_telegram_sender,
+    )
     from app.middleware.telegram_whitelist import TelegramChatWhitelistMiddleware
+    from app.state.halt_repo import HaltStateRepo
+    from db.url import db_url as _db_url_str
 
+    # Reuse the same DB env contract as Agno's PostgresDb. We parse via
+    # psycopg.conninfo so tests don't have to maintain a parallel set.
+    from psycopg.conninfo import conninfo_to_dict
+
+    # db_url is built with the SQLAlchemy "postgresql+psycopg://" prefix;
+    # strip the dialect for psycopg's libpq parser.
+    _libpq_url = _db_url_str.replace("postgresql+psycopg://", "postgresql://", 1)
+    _conn_kwargs = conninfo_to_dict(_libpq_url)
+
+    app.add_middleware(
+        TelegramHaltCommandMiddleware,
+        repo=HaltStateRepo(conn_kwargs=_conn_kwargs),
+        send_message=make_telegram_sender(TELEGRAM_TOKEN),
+        allowed_chat_ids=_telegram_allowed_chat_ids,
+    )
     app.add_middleware(
         TelegramChatWhitelistMiddleware,
         allowed_chat_ids=_telegram_allowed_chat_ids,
