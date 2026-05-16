@@ -84,7 +84,16 @@ agent_os = AgentOS(
     tracing=True,
     scheduler=True,
     scheduler_base_url=scheduler_base_url,
-    authorization=runtime_env == "prd",
+    # JWT auth disabled. The platform is internal infrastructure:
+    #  - /telegram/webhook is gated by the chat-id whitelist middleware
+    #    AND Agno's webhook-secret token (TELEGRAM_WEBHOOK_SECRET_TOKEN).
+    #  - /agents HTTP endpoints are LAN-internal (EdgeXpert is not public).
+    # Upstream's runtime_env=="prd" gate is reasonable for SaaS deploys
+    # where /agents is publicly reachable; for our LAN deploy it would
+    # require generating + maintaining a JWT keypair at os.agno.com for
+    # no security benefit. Reverse this if the platform ever fronts
+    # public traffic.
+    authorization=False,
     lifespan=lifespan,
     db=get_postgres_db(),
     agents=[web_search, code_search],
