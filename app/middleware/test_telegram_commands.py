@@ -138,6 +138,7 @@ def _msg(chat_id: int, text: str, username: str = "ryan") -> dict:
 # Short-circuit behavior — handled commands stop at the middleware
 # ---------------------------------------------------------------------------
 
+
 def test_halt_short_circuits_and_flips_db(client: TestClient, repo: FakeRepo, sender: RecordingSender):
     r = client.post("/telegram/webhook", json=_msg(ALLOWED, "/halt"))
     assert r.status_code == 200
@@ -158,7 +159,9 @@ def test_halt_with_reason_captures_text_after_command(client: TestClient, repo: 
 
 def test_resume_short_circuits_and_flips_db(client: TestClient, repo: FakeRepo, sender: RecordingSender):
     # Pre-halt
-    repo.state = HaltState(halted=True, reason="test", set_by="x", updated_at=datetime(2026, 5, 16, tzinfo=timezone.utc))
+    repo.state = HaltState(
+        halted=True, reason="test", set_by="x", updated_at=datetime(2026, 5, 16, tzinfo=timezone.utc)
+    )
     r = client.post("/telegram/webhook", json=_msg(ALLOWED, "/resume"))
     assert r.status_code == 200
     assert repo.state.halted is False
@@ -190,6 +193,7 @@ def test_status_when_halted_includes_reason(client: TestClient, repo: FakeRepo, 
 # Pass-through behavior — non-handled traffic forwards to downstream
 # ---------------------------------------------------------------------------
 
+
 def test_unhandled_command_forwards(client: TestClient, repo: FakeRepo):
     r = client.post("/telegram/webhook", json=_msg(ALLOWED, "/foo"))
     assert r.status_code == 200
@@ -217,6 +221,7 @@ def test_command_with_at_username_still_handled(client: TestClient, repo: FakeRe
 # Defense-in-depth — chat-id check
 # ---------------------------------------------------------------------------
 
+
 def test_handled_command_from_blocked_chat_dropped(client: TestClient, repo: FakeRepo, sender: RecordingSender):
     """Chat-whitelist middleware should already block this; defense in depth."""
     r = client.post("/telegram/webhook", json=_msg(BLOCKED, "/halt"))
@@ -229,6 +234,7 @@ def test_handled_command_from_blocked_chat_dropped(client: TestClient, repo: Fak
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
+
 
 def test_repo_failure_replies_with_error_message(client: TestClient, sender: RecordingSender):
     """If the DB call raises, send an error reply rather than silently 500."""
