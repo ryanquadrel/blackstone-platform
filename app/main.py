@@ -54,9 +54,7 @@ if SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET:
 # (Codex PR#4 P3). Parser raises on token-set-but-empty-whitelist.
 from app.middleware.telegram_whitelist import parse_allowed_chat_ids  # noqa: E402
 
-_telegram_allowed_chat_ids: set[int] = parse_allowed_chat_ids(
-    TELEGRAM_TOKEN, TELEGRAM_ALLOWED_CHAT_IDS
-)
+_telegram_allowed_chat_ids: set[int] = parse_allowed_chat_ids(TELEGRAM_TOKEN, TELEGRAM_ALLOWED_CHAT_IDS)
 if _telegram_allowed_chat_ids:
     from agno.os.interfaces.telegram import Telegram
 
