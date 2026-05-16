@@ -22,10 +22,18 @@ scheduler_base_url = getenv("AGENTOS_URL", "http://127.0.0.1:8000")
 
 # ---------------------------------------------------------------------------
 # Interfaces
-# - The CodeSearch agent becomes available on Slack when both env vars are set
+# - CodeSearch on Slack — both env vars must be set
+# - CodeSearch on Telegram — TELEGRAM_TOKEN + TELEGRAM_ALLOWED_CHAT_IDS;
+#   per ADR docs/decisions/0001-telegram-two-bots.md the platform uses a
+#   dedicated bot, NOT the existing notification bot. Chat-id whitelist
+#   middleware is added below the agent_os.get_app() call so unauthorized
+#   chats can't talk to the agent at all (Agno's interface itself does NOT
+#   filter by chat_id).
 # ---------------------------------------------------------------------------
 SLACK_BOT_TOKEN = getenv("SLACK_BOT_TOKEN", "")
 SLACK_SIGNING_SECRET = getenv("SLACK_SIGNING_SECRET", "")
+TELEGRAM_TOKEN = getenv("TELEGRAM_TOKEN", "")
+TELEGRAM_ALLOWED_CHAT_IDS = getenv("TELEGRAM_ALLOWED_CHAT_IDS", "")
 
 interfaces: list = []
 if SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET:
@@ -40,6 +48,23 @@ if SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET:
             resolve_user_identity=True,
         )
     )
+
+# Refuse to start the Telegram interface without an explicit whitelist —
+# fail-closed default avoids the case where someone sets TELEGRAM_TOKEN
+# in prod but forgets the whitelist and exposes the bot to everyone.
+_telegram_allowed_chat_ids: set[int] = set()
+if TELEGRAM_TOKEN:
+    if not TELEGRAM_ALLOWED_CHAT_IDS.strip():
+        raise RuntimeError(
+            "TELEGRAM_TOKEN is set but TELEGRAM_ALLOWED_CHAT_IDS is empty. "
+            "Refusing to start the Telegram interface without an explicit "
+            "chat-id whitelist. Set TELEGRAM_ALLOWED_CHAT_IDS to a comma-"
+            "separated list of integer chat ids, or unset TELEGRAM_TOKEN."
+        )
+    _telegram_allowed_chat_ids = {int(chat_id) for chat_id in TELEGRAM_ALLOWED_CHAT_IDS.split(",") if chat_id.strip()}
+    from agno.os.interfaces.telegram import Telegram
+
+    interfaces.append(Telegram(agent=code_search, token=TELEGRAM_TOKEN))
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +98,17 @@ agent_os = AgentOS(
     config=str(Path(__file__).parent / "config.yaml"),
 )
 app = agent_os.get_app()
+
+# Telegram chat-id whitelist runs ahead of Agno's webhook handler so
+# unauthorized updates never reach the agent. See
+# app/middleware/telegram_whitelist.py for the drop-vs-forward logic.
+if _telegram_allowed_chat_ids:
+    from app.middleware.telegram_whitelist import TelegramChatWhitelistMiddleware
+
+    app.add_middleware(
+        TelegramChatWhitelistMiddleware,
+        allowed_chat_ids=_telegram_allowed_chat_ids,
+    )
 
 
 if __name__ == "__main__":
