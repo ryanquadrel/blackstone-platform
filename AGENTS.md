@@ -19,13 +19,13 @@ Shared:
 - `app.settings.default_model()` returns `VLLM(id="Qwen/Qwen3.5-122B-A10B-FP8")` pointed at the Blackstone vLLM cluster on `spark-1:8000`. Override per deployment via `VLLM_BASE_URL` / `VLLM_MODEL_ID`. Agents wanting Claude or another provider construct it directly (e.g. `Claude(id="claude-sonnet-4-6", api_key=...)`).
 - Scheduler enabled by default (`scheduler=True`).
 - Slack interface lights up automatically when both `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET` are set.
-- JWT auth on whenever `RUNTIME_ENV == "prd"` (so production deploys are gated by default).
+- JWT auth **disabled** in [`app/main.py`](app/main.py) (`authorization=False`). The platform is internal infrastructure; the only externally-reachable surface is `/telegram/webhook`, which is doubly gated by the chat-id whitelist middleware and Agno's webhook secret token. Reverse if the platform ever fronts public HTTP traffic.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| [`app/main.py`](app/main.py) | AgentOS entrypoint — lifespan hook, conditional Slack, JWT gate. |
+| [`app/main.py`](app/main.py) | AgentOS entrypoint — lifespan hook, conditional Slack + Telegram interfaces, middleware stack. |
 | [`app/settings.py`](app/settings.py) | `default_model()` factory. |
 | [`app/config.yaml`](app/config.yaml) | Quick prompts per agent (keyed by agent `id`). |
 | [`agents/web_search.py`](agents/web_search.py) | Reference agent — direct tools (Parallel SDK or MCP). |
@@ -48,7 +48,7 @@ cp example.env .env
 docker compose up -d --build
 ```
 
-Hot-reload watches `agents/`, `app/`, `db/`. Edits land in <2s. `compose.yaml` sets `RUNTIME_ENV=dev`, `AGNO_DEBUG=True`, and `WAIT_FOR_DB=True` so JWT is off and the API blocks on the DB before serving.
+Hot-reload watches `agents/`, `app/`, `db/`. Edits land in <2s. `compose.yaml` sets `RUNTIME_ENV=dev`, `AGNO_DEBUG=True`, and `WAIT_FOR_DB=True` so debug logs are on and the API blocks on the DB before serving.
 
 ### Format & Validate
 
@@ -166,7 +166,7 @@ Run [`docs/review-and-improve.md`](docs/review-and-improve.md). A recurring swee
 | `AGENTOS_PORT` | no | `8000` | Host-side port mapping for the API container. Override when the default is taken (e.g. on EdgeXpert vLLM owns 8000). |
 | `DB_PORT_HOST` | no | `5432` | Host-side port mapping for Postgres. |
 | `RUNTIME_ENV` | no | `prd` | `dev` enables hot-reload and disables JWT. Compose sets this to `dev` for local. |
-| `JWT_VERIFICATION_KEY` | prd | — | Public key from os.agno.com. Required when `RUNTIME_ENV=prd` and `authorization=True`. |
+| `JWT_VERIFICATION_KEY` | n/a | — | Only required if `authorization=True` in [`app/main.py`](app/main.py). Currently disabled (internal infra). Generate at os.agno.com (Add OS → Live → Token Based Authorization) if you re-enable. |
 | `AGENTOS_URL` | no | `http://127.0.0.1:8000` | Scheduler base URL. Set to the public/internal URL in production so cron triggers reach AgentOS. |
 | `PARALLEL_API_KEY` | no | — | Authenticates the WebSearch Agent's Parallel SDK / MCP connection (raises rate ceiling). |
 | `SLACK_BOT_TOKEN` | no | — | Bot token. Set with signing secret to enable Slack interface. |
@@ -229,7 +229,7 @@ Full walkthrough including update path, healthcheck behavior, port-conflict over
 
 For other Linux hosts: the same `deploy/edgexpert/` files work anywhere with `docker` + `systemd` + (typically) ARM64 or amd64. The directory name is historical; nothing in the files is EdgeXpert-specific.
 
-JWT note: the first deploy with `RUNTIME_ENV=prd` (the default) refuses traffic until `JWT_VERIFICATION_KEY` is set. Generate the keypair at os.agno.com (Add OS → Live → Token Based Authorization), add the PEM block to `.env`, restart the unit.
+Auth note: JWT is disabled in [`app/main.py`](app/main.py) (`authorization=False`) for internal LAN deploys. The Telegram webhook is doubly gated (chat-id whitelist + Agno's `TELEGRAM_WEBHOOK_SECRET_TOKEN`). Re-enable `authorization=True` and configure `JWT_VERIFICATION_KEY` if you ever expose `/agents/*` HTTP endpoints publicly.
 
 ## Common Tasks
 
