@@ -58,9 +58,14 @@ class TelegramChatWhitelistMiddleware(BaseHTTPMiddleware):
         chat_id = _extract_chat_id(body_bytes)
 
         if chat_id is None:
-            # Couldn't extract a chat_id — could be a callback_query or
-            # malformed JSON. Forward and let Agno (or its 400) handle it.
-            return await _replay(request, call_next, body_bytes)
+            # Fail-closed (Codex PR#4 P2): unknown update shapes
+            # (callback_query, channel_post, inline_query, malformed JSON, …)
+            # do not have an extractable chat id. Agno currently ignores
+            # them anyway, but a whitelist security boundary should not
+            # depend on downstream staying narrow. Drop with 200 so
+            # Telegram doesn't retry, log so misconfigurations surface.
+            log_warning("Dropping Telegram update with no extractable chat_id (unknown shape or malformed body)")
+            return JSONResponse({"status": "dropped"}, status_code=200)
 
         if chat_id not in self.allowed_chat_ids:
             log_warning(f"Dropping Telegram update from non-whitelisted chat_id={chat_id}")
@@ -102,3 +107,29 @@ async def _replay(request: Request, call_next, body_bytes: bytes) -> Response:
 
     request._receive = receive  # type: ignore[attr-defined]
     return await call_next(request)
+
+
+def parse_allowed_chat_ids(token: str, chat_ids_raw: str) -> set[int]:
+    """Parse the TELEGRAM_ALLOWED_CHAT_IDS env value, gated on TELEGRAM_TOKEN.
+
+    Returns an empty set when no Telegram token is configured — caller
+    treats that as "Telegram interface disabled."
+
+    When the token IS set, parses the comma-separated chat-id list and
+    raises RuntimeError if it resolves to an empty set (Codex PR#4 P1:
+    `","` and `" "` and `""` all need to be rejected, not just `""`).
+    The same parsed set drives BOTH the interface append AND the
+    middleware install in app/main.py, so they cannot drift.
+    """
+    if not token:
+        return set()
+    allowed = {int(chat_id) for chat_id in chat_ids_raw.split(",") if chat_id.strip()}
+    if not allowed:
+        raise RuntimeError(
+            "TELEGRAM_TOKEN is set but TELEGRAM_ALLOWED_CHAT_IDS parsed "
+            "to an empty set. Refusing to start the Telegram interface "
+            "without an explicit chat-id whitelist. Set "
+            "TELEGRAM_ALLOWED_CHAT_IDS to a comma-separated list of "
+            "integer chat ids, or unset TELEGRAM_TOKEN."
+        )
+    return allowed

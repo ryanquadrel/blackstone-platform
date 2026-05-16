@@ -16,7 +16,10 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from app.middleware.telegram_whitelist import TelegramChatWhitelistMiddleware
+from app.middleware.telegram_whitelist import (
+    TelegramChatWhitelistMiddleware,
+    parse_allowed_chat_ids,
+)
 
 ALLOWED = 8510846692
 BLOCKED = 1234567890
@@ -97,11 +100,11 @@ def test_edited_message_uses_same_chat_id_path(client: TestClient):
     assert _LAST_BODY is not None and _LAST_BODY["edited_message"]["chat"]["id"] == ALLOWED
 
 
-def test_callback_query_without_message_chat_forwards(client: TestClient):
-    """Updates without `message.chat` (e.g., callback_query) are not our
-    concern — forward them and let downstream handle/ignore. Agno currently
-    ignores callback_query, but the middleware should not silently consume
-    them either."""
+def test_callback_query_without_message_chat_dropped(client: TestClient):
+    """Updates without `message.chat` (callback_query, channel_post,
+    inline_query, …) carry no extractable chat_id. Per Codex PR#4 P2 we
+    fail-closed and drop rather than forwarding — a whitelist boundary
+    shouldn't depend on downstream staying narrow."""
     body = {
         "update_id": 3,
         "callback_query": {
@@ -112,21 +115,23 @@ def test_callback_query_without_message_chat_forwards(client: TestClient):
     }
     r = client.post("/telegram/webhook", json=body)
     assert r.status_code == 200
-    assert _LAST_BODY is not None and "callback_query" in _LAST_BODY
+    assert r.json() == {"status": "dropped"}
+    assert _LAST_BODY is None, "downstream must NOT be called on unknown shapes"
 
 
-def test_malformed_json_forwards(client: TestClient):
-    """Garbage body — middleware can't extract chat_id, so it forwards.
-    Downstream returns 400. The point: middleware does NOT silently swallow
-    a malformed body as 'dropped' (which would mask real bot bugs)."""
+def test_malformed_json_dropped(client: TestClient):
+    """Garbage body — middleware can't extract chat_id, so we drop
+    (fail-closed). Earlier behavior forwarded to let downstream 400, but
+    Codex PR#4 P2 pointed out that a whitelist boundary shouldn't depend
+    on downstream's error behavior to enforce security."""
     r = client.post(
         "/telegram/webhook",
         content=b"not json",
         headers={"content-type": "application/json"},
     )
-    assert r.status_code == 400
-    assert r.json() != {"status": "dropped"}, "middleware must not absorb malformed updates"
-    assert _LAST_BODY is None, "downstream saw the malformed body and rejected"
+    assert r.status_code == 200
+    assert r.json() == {"status": "dropped"}
+    assert _LAST_BODY is None
 
 
 def test_non_webhook_path_unaffected(client: TestClient):
@@ -154,3 +159,48 @@ def test_empty_allowed_set_blocks_everything():
     assert r.status_code == 200
     assert r.json() == {"status": "dropped"}
     assert _LAST_BODY is None
+
+
+# ---------------------------------------------------------------------------
+# parse_allowed_chat_ids — env-string parser
+# Codex PR#4 P1 + P3 — every degenerate input that would have slipped
+# past the original `.strip()` check must now raise.
+# ---------------------------------------------------------------------------
+
+
+def test_parse_no_token_returns_empty_set():
+    """Telegram interface stays off when TELEGRAM_TOKEN isn't set."""
+    assert parse_allowed_chat_ids("", "8510846692") == set()
+    assert parse_allowed_chat_ids("", "") == set()
+
+
+def test_parse_happy_path_single_id():
+    assert parse_allowed_chat_ids("tok", "8510846692") == {8510846692}
+
+
+def test_parse_happy_path_multiple_ids():
+    assert parse_allowed_chat_ids("tok", "1,2,3") == {1, 2, 3}
+    assert parse_allowed_chat_ids("tok", " 1 , 2 , 3 ") == {1, 2, 3}
+
+
+@pytest.mark.parametrize(
+    "degenerate",
+    [
+        "",  # the obvious case
+        " ",  # whitespace only
+        ",",  # the Codex P1 — comma-only passes .strip() but parses empty
+        ",,,",
+        " , , ",  # whitespace + commas
+        "\t\n",
+    ],
+)
+def test_parse_token_set_but_empty_chat_ids_raises(degenerate: str):
+    """Token-set-but-no-real-chat-ids is fail-closed."""
+    with pytest.raises(RuntimeError, match="TELEGRAM_ALLOWED_CHAT_IDS"):
+        parse_allowed_chat_ids("tok", degenerate)
+
+
+def test_parse_invalid_int_raises():
+    """Non-integer entries are a config error, not a silent skip."""
+    with pytest.raises(ValueError):
+        parse_allowed_chat_ids("tok", "1,not-a-number,3")

@@ -49,19 +49,13 @@ if SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET:
         )
     )
 
-# Refuse to start the Telegram interface without an explicit whitelist —
-# fail-closed default avoids the case where someone sets TELEGRAM_TOKEN
-# in prod but forgets the whitelist and exposes the bot to everyone.
-_telegram_allowed_chat_ids: set[int] = set()
-if TELEGRAM_TOKEN:
-    if not TELEGRAM_ALLOWED_CHAT_IDS.strip():
-        raise RuntimeError(
-            "TELEGRAM_TOKEN is set but TELEGRAM_ALLOWED_CHAT_IDS is empty. "
-            "Refusing to start the Telegram interface without an explicit "
-            "chat-id whitelist. Set TELEGRAM_ALLOWED_CHAT_IDS to a comma-"
-            "separated list of integer chat ids, or unset TELEGRAM_TOKEN."
-        )
-    _telegram_allowed_chat_ids = {int(chat_id) for chat_id in TELEGRAM_ALLOWED_CHAT_IDS.split(",") if chat_id.strip()}
+# Parse once, drive both append-interface AND install-middleware below
+# off the same _telegram_allowed_chat_ids signal so they cannot drift
+# (Codex PR#4 P3). Parser raises on token-set-but-empty-whitelist.
+from app.middleware.telegram_whitelist import parse_allowed_chat_ids  # noqa: E402
+
+_telegram_allowed_chat_ids: set[int] = parse_allowed_chat_ids(TELEGRAM_TOKEN, TELEGRAM_ALLOWED_CHAT_IDS)
+if _telegram_allowed_chat_ids:
     from agno.os.interfaces.telegram import Telegram
 
     interfaces.append(Telegram(agent=code_search, token=TELEGRAM_TOKEN))
@@ -102,6 +96,10 @@ app = agent_os.get_app()
 # Telegram chat-id whitelist runs ahead of Agno's webhook handler so
 # unauthorized updates never reach the agent. See
 # app/middleware/telegram_whitelist.py for the drop-vs-forward logic.
+# Same _telegram_allowed_chat_ids signal as the interface append above
+# — if the interface was appended, the middleware is installed; the
+# parser raises on the in-between state where token is set but chat-id
+# set is empty.
 if _telegram_allowed_chat_ids:
     from app.middleware.telegram_whitelist import TelegramChatWhitelistMiddleware
 
