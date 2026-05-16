@@ -17,7 +17,7 @@ constrained to [a-z0-9_]+, so we expose them as /halt and /resume
 from __future__ import annotations
 
 import json
-from typing import Awaitable, Callable, Iterable
+from typing import Awaitable, Callable, Iterable, Protocol
 
 import aiohttp
 from agno.utils.log import log_error, log_info, log_warning
@@ -26,7 +26,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-from app.state.halt_repo import HaltState, HaltStateRepo
+from app.state.halt_repo import HaltState
 
 # SendMessage signature: (chat_id, text) -> awaitable returning HTTP status.
 # Indirection so tests can inject a recorder.
@@ -35,12 +35,22 @@ SendMessageFn = Callable[[int, str], Awaitable[int]]
 HANDLED_COMMANDS = {"/halt", "/resume", "/status"}
 
 
+class HaltRepoProtocol(Protocol):
+    """Structural type for the halt-state repo. Matches HaltStateRepo
+    (the production async-psycopg implementation) and any test fake
+    that exposes the same three async methods."""
+
+    async def status(self) -> HaltState: ...
+    async def halt(self, *, set_by: str, reason: str | None = None) -> HaltState: ...
+    async def resume(self, *, set_by: str) -> HaltState: ...
+
+
 class TelegramHaltCommandMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: ASGIApp,
         *,
-        repo: HaltStateRepo,
+        repo: HaltRepoProtocol,
         send_message: SendMessageFn,
         allowed_chat_ids: Iterable[int],
         webhook_path_suffix: str = "/telegram/webhook",
@@ -85,7 +95,7 @@ class TelegramHaltCommandMiddleware(BaseHTTPMiddleware):
             log_warning(f"Halt-command middleware: dropping {cmd} from chat_id={chat_id}")
             return JSONResponse({"status": "dropped"}, status_code=200)
 
-        from_user = message.get("from") or {}
+        from_user = (message.get("from") or {})
         set_by = f"telegram:{chat_id}:{from_user.get('username') or from_user.get('id', '?')}"
 
         try:
@@ -149,7 +159,6 @@ async def _replay(request: Request, call_next, body_bytes: bytes) -> Response:
 # Default `send_message` implementation — POST to Telegram Bot API via aiohttp.
 # Constructed in app/main.py with the bot token bound in.
 # ---------------------------------------------------------------------------
-
 
 def make_telegram_sender(bot_token: str) -> SendMessageFn:
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"

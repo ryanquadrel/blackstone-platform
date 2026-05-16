@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import asyncio
 import os
+from typing import Any
 
 import psycopg
 import pytest
 
 from app.state.halt_repo import HaltStateRepo
 
-CONN = {
+CONN: dict[str, Any] = {
     "host": os.environ.get("DB_HOST", "localhost"),
     "port": os.environ.get("DB_PORT", "5432"),
     "user": os.environ.get("DB_USER", "ai"),
