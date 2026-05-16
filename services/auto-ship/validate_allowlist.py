@@ -47,11 +47,11 @@ DRAFTER_NAME_RE = re.compile(
 # produce them). The patterns below catch verb-form drafting and explicit
 # auto-draft hooks while letting orchestration descriptions through.
 DRAFTER_DESCRIPTION_PATTERNS = (
-    r"\bdrafting\b",                                       # gerund
-    r"\bdrafts?\s+(a|an|the|new|this)\b",                  # verb form: "draft a letter", "drafts the brief"
-    r"\bauto-draft",                                       # "auto-draft hook" / "auto-drafts"
+    r"\bdrafting\b",  # gerund
+    r"\bdrafts?\s+(a|an|the|new|this)\b",  # verb form: "draft a letter", "drafts the brief"
+    r"\bauto-draft",  # "auto-draft hook" / "auto-drafts"
     r"\b(produces?|generates?)\s+(a\s+|an\s+|the\s+)?drafts?\b",  # "produces drafts", "generates a draft"
-    r"\bpleading\b",                                       # singular only — "pleadings filed by OC" is benign noun usage
+    r"\bpleading\b",  # singular only — "pleadings filed by OC" is benign noun usage
     r"\bletterhead\b",
     r"\bmotion\s*\(filing\)",
 )

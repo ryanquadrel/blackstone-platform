@@ -19,6 +19,7 @@ import validate_allowlist as v
 # Helpers — build synthetic skill trees in tmp_path
 # ---------------------------------------------------------------------------
 
+
 def _write_skill(
     skills_root: Path,
     name: str,
@@ -70,6 +71,7 @@ def automations(tmp_path: Path) -> Path:
 # Happy path
 # ---------------------------------------------------------------------------
 
+
 def test_clean_manifest_passes(tmp_path: Path, automations: Path):
     skills = automations / "skills"
     _write_skill(skills, "discovery-tracker-sync")
@@ -88,6 +90,7 @@ def test_clean_manifest_passes(tmp_path: Path, automations: Path):
 # Rule: exclusive — entry must be in exactly one section
 # ---------------------------------------------------------------------------
 
+
 def test_entry_in_two_sections_fails(tmp_path: Path, automations: Path):
     skills = automations / "skills"
     _write_skill(skills, "foo")
@@ -104,6 +107,7 @@ def test_entry_in_two_sections_fails(tmp_path: Path, automations: Path):
 # Rule: exists — skill must exist in blackstone-automations
 # ---------------------------------------------------------------------------
 
+
 def test_missing_skill_fails(tmp_path: Path, automations: Path):
     skills = automations / "skills"
     manifest = _write_manifest(
@@ -118,11 +122,20 @@ def test_missing_skill_fails(tmp_path: Path, automations: Path):
 # Rule: drafter-name — name regex catches obvious drafters
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "name",
-    ["mc-letter", "mediation-brief", "declaration-iso-mtc", "rfp-drafting",
-     "separate-statement-mtc", "rfp-responses", "legal-doc-drafting",
-     "stip-to-stay", "proof-of-service"],
+    [
+        "mc-letter",
+        "mediation-brief",
+        "declaration-iso-mtc",
+        "rfp-drafting",
+        "separate-statement-mtc",
+        "rfp-responses",
+        "legal-doc-drafting",
+        "stip-to-stay",
+        "proof-of-service",
+    ],
 )
 def test_drafter_name_blocks_in_auto_loop(tmp_path: Path, automations: Path, name: str):
     skills = automations / "skills"
@@ -150,6 +163,7 @@ def test_drafter_name_does_not_block_in_excluded(tmp_path: Path, automations: Pa
 # ---------------------------------------------------------------------------
 # Rule: drafter-description — SKILL.md frontmatter description
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "phrase",
@@ -184,9 +198,7 @@ def test_drafter_description_fails(tmp_path: Path, automations: Path, phrase: st
         "Tracks motion outcomes and pleadings filed by opposing counsel.",
     ],
 )
-def test_drafter_description_tolerates_orchestration_language(
-    tmp_path: Path, automations: Path, phrase: str
-):
+def test_drafter_description_tolerates_orchestration_language(tmp_path: Path, automations: Path, phrase: str):
     """Bare 'drafts' (noun, referring to other skills' output) must not fire."""
     skills = automations / "skills"
     _write_skill(skills, "orchestrator", description=phrase)
@@ -208,11 +220,7 @@ def test_drafter_content_rules_skip_probe_only(tmp_path: Path, automations: Path
         "watcher-with-draft-hook",
         description="Monitors task runs and auto-drafts a status email.",
         python_files={
-            "build.py": (
-                "from docx import Document\n"
-                "def build():\n"
-                "    Document().save('out.docx')\n"
-            ),
+            "build.py": ("from docx import Document\ndef build():\n    Document().save('out.docx')\n"),
         },
     )
     manifest = _write_manifest(
@@ -228,6 +236,7 @@ def test_drafter_content_rules_skip_probe_only(tmp_path: Path, automations: Path
 # ---------------------------------------------------------------------------
 # Rule: python-docx-output — AST scan for docx import + Document()
 # ---------------------------------------------------------------------------
+
 
 def test_python_docx_output_fails(tmp_path: Path, automations: Path):
     skills = automations / "skills"
@@ -273,6 +282,7 @@ def test_python_docx_not_imported_passes(tmp_path: Path, automations: Path):
 # ---------------------------------------------------------------------------
 # Rule: drafter-output-path — string-literal scan
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("fragment", ["Active Cases/", "/Drafts/", "/Pleadings/"])
 def test_drafter_output_path_fails(tmp_path: Path, automations: Path, fragment: str):
