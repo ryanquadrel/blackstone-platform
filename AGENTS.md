@@ -183,7 +183,7 @@ Two supported targets:
 | Mode | Connection | When |
 |---|---|---|
 | **Local Postgres** | `agentos-db` container (the default in `compose.yaml`) | Dev. Lives alongside the api container; data in a `pgdata` volume. |
-| **Supabase session pooler** | `aws-1-us-west-2.pooler.supabase.com:5432`, user `postgres.<project-ref>` | Production. Memo §2 prescribed `pxyrurfpeyodesjxjfqc` (`auto_ship_platform` schema). |
+| **Supabase session pooler** | `aws-1-us-west-2.pooler.supabase.com:5432`, user `postgres.<project-ref>` | Production. Memo §2 prescribed the `auto_ship_platform` schema on the firm's production project. |
 
 `db/url.py` reads from `DB_HOST` / `DB_USER` / `DB_PASS` / `DB_DATABASE` env vars; no code change to switch targets. To point at Supabase: set those four vars in `.env` (see `example.env` for the template). Use the **session pooler**, not the transaction pooler — the latter breaks prepared statements + multi-statement transactions, both of which Agno + our migrations rely on.
 
