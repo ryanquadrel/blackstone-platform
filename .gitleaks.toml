@@ -1,0 +1,47 @@
+title = "blackstone-platform — secret & confidential-content scan"
+
+# This repo is a PUBLIC fork of agno-agi/agent-platform-railway. It is scoped to
+# host ONLY the Agno auto-ship platform and must NEVER contain confidential
+# content: credentials, firm infra identifiers, or attorney-client material.
+# See SECURITY.md for the human-readable rule. This config is the machine gate.
+
+[extend]
+# Start from gitleaks' built-in credential ruleset (JWTs, cloud keys, GitHub
+# PATs, Slack/Stripe/etc. tokens, private keys) and add firm-specific rules.
+useDefault = true
+
+[[rules]]
+id = "blackstone-supabase-project-ref"
+description = "Known Blackstone Supabase project ref — confidential infra identifier, must not appear in a public repo"
+regex = '''(pxyrurfpeyodesjxjfqc|znzhdgnbadzsibrjaspd)'''
+tags = ["blackstone", "confidential", "infra"]
+
+[[rules]]
+id = "blackstone-supabase-host"
+description = "A concrete Supabase project host (db.<ref>.supabase.co with a real 20-char ref) — use the <ref> placeholder instead"
+regex = '''\bdb\.[a-z]{20}\.supabase\.co\b'''
+tags = ["blackstone", "confidential", "infra"]
+
+[[rules]]
+id = "blackstone-privilege-marker"
+description = "Attorney-client privileged / work-product marker — privileged material must never land in this public repo"
+regex = '''(?i)(attorney[-\s]client privilege|privileged and confidential|attorney work[-\s]product)'''
+tags = ["blackstone", "confidential", "privilege"]
+
+[[rules]]
+id = "blackstone-ca-case-number"
+description = "California trial-court case-number pattern (likely client-matter identifier)"
+regex = '''\b\d{2}(CV|STCV|STCP|CIV|CGC|CU|VCU|RG|RIC|MSC|FCS)[A-Z]{0,3}\d{5,}\b'''
+tags = ["blackstone", "confidential", "case-number"]
+
+[allowlist]
+description = "Meta-files and fixtures that legitimately reference the patterns above"
+paths = [
+  '''\.gitleaks\.toml$''',
+  '''^SECURITY\.md$''',
+  '''(^|/)example\.env$''',
+  '''(^|/)tests?/''',
+  '''(^|/)fixtures?/''',
+  '''(^|/)test_[^/]*\.py$''',
+  '''(^|/)[^/]*_test\.py$''',
+]
