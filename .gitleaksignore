@@ -1,0 +1,16 @@
+# Baseline of PRE-EXISTING findings, accepted on 2026-05-28.
+#
+# These four fingerprints are the firm's production Supabase project ref and DB
+# host committed to docs in 5/16 history (AGENTS.md, migrations/README.md). The
+# value is an infrastructure IDENTIFIER, not a live credential — the project has
+# rotated keys + RLS since the 2026-05-08 incident, and it had already been
+# public for ~2 weeks. We removed it from the CURRENT files (placeholders) and
+# chose to baseline the old commits rather than rewrite public git history.
+#
+# This ignores ONLY these specific historical occurrences by fingerprint. Any
+# NEW occurrence (different commit/line) still fails the build. Do not add
+# fingerprints here to wave through a fresh leak — fix the file instead.
+ea618a21db78f92819da0b3f6b9cfce3277d3c3f:AGENTS.md:blackstone-supabase-project-ref:184
+99c36a07d77a89f4075203c431c584c566e43f60:services/auto-ship/migrations/README.md:blackstone-supabase-project-ref:22
+99c36a07d77a89f4075203c431c584c566e43f60:services/auto-ship/migrations/README.md:blackstone-supabase-project-ref:23
+99c36a07d77a89f4075203c431c584c566e43f60:services/auto-ship/migrations/README.md:blackstone-supabase-host:23

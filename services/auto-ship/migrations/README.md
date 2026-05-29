@@ -19,8 +19,8 @@ All tables created by these migrations are scoped to the `auto_ship_platform` sc
 # Local agentos-db (no env needed — uses the same defaults as db/url.py).
 python services/auto-ship/migrations/apply.py
 
-# Supabase pxyrurfpeyodesjxjfqc — set env then apply.
-DB_HOST=db.pxyrurfpeyodesjxjfqc.supabase.co \
+# Supabase (production project) — set env then apply.
+DB_HOST=db.<project-ref>.supabase.co \
 DB_USER=postgres \
 DB_PASS=$(cat ~/.blackstone-secrets/supabase-pxyr-db-password.txt) \
 DB_DATABASE=postgres \
