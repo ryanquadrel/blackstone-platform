@@ -53,9 +53,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/agents > /dev/null"]
+      # API up AND a real database login. `curl /agents` alone stayed healthy
+      # while Postgres rejected every connection, because agno storage routes
+      # return 200 with empty results on a failed login.
+      test: ["CMD", "python", "/app/scripts/healthcheck.py"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
       start_period: 45s
 
