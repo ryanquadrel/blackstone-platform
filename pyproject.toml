@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["mypy", "ruff"]
+dev = ["mypy==2.1.0", "ruff==0.15.15"]
 
 [build-system]
 requires = ["setuptools"]
