@@ -50,6 +50,15 @@ services:
       - agentos
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      # API up AND a real database login, same as deploy/edgexpert. agno
+      # storage routes return 200 with empty results on a failed login, so an
+      # HTTP-only check cannot see a wrong DB_PASS.
+      test: ["CMD", "python", "/app/scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
 
 networks:
   agentos:
