@@ -6,9 +6,9 @@ WebSearch Agent
 from os import getenv
 
 from agno.agent import Agent
-from agno.tools.mcp import MCPTools
 from agno.tools.parallel import ParallelTools
 
+from app.mcp_tools import SafeMCPTools
 from app.settings import default_model
 from db import get_postgres_db
 
@@ -16,11 +16,12 @@ from db import get_postgres_db
 # the agent gets `parallel_search` and `parallel_extract` directly.
 # Without a key, fall back to the keyless MCP endpoint and the agent
 # gets `web_search` and `web_fetch` instead. AgentOS handles MCP
-# connect/close as part of its lifespan.
+# connect/close as part of its lifespan. SafeMCPTools releases a failed
+# handshake instead of leaking a spinning anyio cancel scope (app/mcp_tools.py).
 if getenv("PARALLEL_API_KEY"):
-    web_tools: ParallelTools | MCPTools = ParallelTools()
+    web_tools: ParallelTools | SafeMCPTools = ParallelTools()
 else:
-    web_tools = MCPTools(url="https://search.parallel.ai/mcp", transport="streamable-http")
+    web_tools = SafeMCPTools(url="https://search.parallel.ai/mcp", transport="streamable-http")
 
 
 WEB_SEARCH_INSTRUCTIONS = """\
